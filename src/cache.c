@@ -9,9 +9,16 @@
  */
 struct cache_entry *alloc_entry(char *path, char *content_type, void *content, int content_length)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    struct cache_entry *ret = calloc(1, sizeof(struct cache_entry));
+
+    ret->path = strdup(path); 
+    ret->content_type = strdup(content_type);
+    ret->content_length = content_length;
+    ret->content = strdup(content);
+    ret->prev = NULL;
+    ret->next = NULL;
+
+    return ret;
 }
 
 /**
@@ -19,9 +26,11 @@ struct cache_entry *alloc_entry(char *path, char *content_type, void *content, i
  */
 void free_entry(struct cache_entry *entry)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    free(entry->path);
+    free(entry->content_type);
+    free(entry->content);
+
+    free(entry);
 }
 
 /**
@@ -78,8 +87,6 @@ struct cache_entry *dllist_remove_tail(struct cache *cache)
     cache->tail = oldtail->prev;
     cache->tail->next = NULL;
 
-    cache->cur_size--;
-
     return oldtail;
 }
 
@@ -94,6 +101,13 @@ struct cache *cache_create(int max_size, int hashsize)
     ///////////////////
     // IMPLEMENT ME! //
     ///////////////////
+    struct cache *ret = calloc(1, sizeof(struct cache));
+    ret->index = hashtable_create(hashsize, NULL);
+    ret->head = NULL;
+    ret->tail = NULL;
+    ret->max_size = max_size;
+    ret->cur_size = 0;
+    return ret;
 }
 
 void cache_free(struct cache *cache)
@@ -122,9 +136,17 @@ void cache_free(struct cache *cache)
  */
 void cache_put(struct cache *cache, char *path, char *content_type, void *content, int content_length)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    struct cache_entry *ce = alloc_entry(path, content_type, content, content_length);
+    // If cache is filled
+    if (cache->cur_size == cache->max_size) {
+        // Evict the least recently used cache entry both in ddl and ht
+        hashtable_delete(cache->index, dllist_remove_tail(cache)->path);
+        cache->cur_size--;
+    }     
+    // Insert and mark it recently used both in ddl and ht
+    dllist_insert_head(cache, ce);
+    cache->cur_size++;
+    hashtable_put(cache->index, ce->path, (void *)ce); 
 }
 
 /**
@@ -132,7 +154,14 @@ void cache_put(struct cache *cache, char *path, char *content_type, void *conten
  */
 struct cache_entry *cache_get(struct cache *cache, char *path)
 {
-    ///////////////////
-    // IMPLEMENT ME! //
-    ///////////////////
+    // Get cache entry by searching ht
+    struct cache_entry *ce = hashtable_get(cache->index, path);
+
+    // Cache entry is not exist
+    if (ce == NULL) return NULL;
+
+    // Mark recently used
+    dllist_move_to_head(cache, ce);
+
+    return ce;
 }
